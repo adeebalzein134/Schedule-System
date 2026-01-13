@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <title>اختبار إشعارات WebSocket</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    input, button, select { margin: 5px 0; padding: 6px 10px; }
+    #logs { border: 1px solid #ccc; padding: 10px; height: 200px; overflow: auto; background: #fafafa; }
+    .row { margin-bottom: 10px; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+</head>
+<body>
+  <h2>اختبار الإشعارات عبر WebSocket (STOMP)</h2>
+  <div class="row">
+    <label>نقطة الاتصال:</label>
+    <select id="endpoint">
+      <option value="native">wss://localhost:8443/ws (Native)</option>
+      <option value="sockjs">https://localhost:8443/ws-sockjs (SockJS)</option>
+    </select>
+  </div>
+  <div class="row">
+    <button id="connectBtn">اتصال</button>
+    <button id="disconnectBtn" disabled>قطع الاتصال</button>
+  </div>
+  <div class="row">
+    <label>اسم المستخدم للاشتراك:</label>
+    <input id="username" placeholder="customer" value="customer" />
+    <button id="subscribeBtn" disabled>اشترك في /topic/notifications/{username}</button>
+  </div>
+  <h3>السجل</h3>
+  <div id="logs"></div>
+
+  <script>
+    let stompClient = null;
+
+    function log(msg) {
+      const el = document.getElementById('logs');
+      const line = document.createElement('div');
+      line.textContent = msg;
+      el.appendChild(line);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    document.getElementById('connectBtn').onclick = function () {
+      const mode = document.getElementById('endpoint').value;
+      if (mode === 'sockjs') {
+        const sock = new SockJS('https://localhost:8443/ws-sockjs');
+        stompClient = Stomp.over(sock);
+      } else {
+        const ws = new WebSocket('wss://localhost:8443/ws');
+        stompClient = Stomp.over(ws);
+      }
+      // اختياري: إطفاء debug
+      stompClient.debug = () => {};
+
+      stompClient.connect({}, frame => {
+        log('CONNECTED: ' + frame);
+        document.getElementById('disconnectBtn').disabled = false;
+        document.getElementById('subscribeBtn').disabled = false;
+      }, err => {
+        log('ERROR: ' + err);
+      });
+    };
+
+    document.getElementById('disconnectBtn').onclick = function () {
+      if (stompClient && stompClient.connected) {
+        stompClient.disconnect(() => {
+          log('DISCONNECTED');
+        });
+      }
+      document.getElementById('disconnectBtn').disabled = true;
+      document.getElementById('subscribeBtn').disabled = true;
+    };
+
+    document.getElementById('subscribeBtn').onclick = function () {
+      const username = document.getElementById('username').value.trim();
+      if (!username) { alert('أدخل اسم مستخدم'); return; }
+      const dest = '/topic/notifications/' + username;
+      stompClient.subscribe(dest, message => {
+        log('RECV [' + dest + ']: ' + message.body);
+      });
+      log('SUBSCRIBED to ' + dest);
+    };
+  </script>
+</body>
+</html>
+
